@@ -1,0 +1,84 @@
+# Local Jarvis — середина между болтливым другом и кодером-оркестратором
+# Для: RTX 4060 8GB VRAM + 16GB RAM + i7 13th gen
+# Вариант 2-3: локальный Qwen 14B/32B + опционально API Opus/GPT для силы как у Bradley
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: jarvis-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_NUM_PARALLEL=1
+      # Для 4060 8GB + 16 RAM — разрешаем оффлоад на RAM
+      - OLLAMA_MAX_VRAM=7500
+    restart: unless-stopped
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: jarvis-webui
+    ports:
+      - "3000:8080"
+    volumes:
+      - ./webui_data:/app/backend/data
+      - ./MEMORY.md:/app/backend/data/MEMORY.md
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - ENABLE_RAG_HYBRID_SEARCH=true
+      - CHROMA_HTTP_HOST=chroma
+      - CHROMA_HTTP_PORT=8000
+      # Для гибрида — сюда вставишь API ключи если хочешь силу как у меня
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    depends_on:
+      - ollama
+      - chroma
+    restart: unless-stopped
+
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: jarvis-chroma
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+    restart: unless-stopped
+
+  openhands:
+    image: ghcr.io/all-hands-ai/openhands:latest
+    container_name: jarvis-orchestrator
+    ports:
+      - "3001:3000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./workspace:/opt/workspace
+      - ./MEMORY.md:/opt/workspace/MEMORY.md
+    environment:
+      - SANDBOX_RUNTIME_CONTAINER_IMAGE=ghcr.io/all-hands-ai/runtime:latest
+      - SANDBOX_USER_ID=1000
+      - LLM_OLLAMA_BASE_URL=http://ollama:11434
+      - LLM_MODEL=ollama/qwen2.5:14b-instruct-q4_K_M
+      # Для гибрида — можешь переключить на anthropic/claude-opus-4-5-20251101 или openai/gpt-5
+      - LLM_MODEL_HYBRID=${LLM_MODEL_HYBRID:-ollama/qwen2.5:14b-instruct-q4_K_M}
+    depends_on:
+      - ollama
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+  webui_data:
+  chroma_data:

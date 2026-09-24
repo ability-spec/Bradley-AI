@@ -1,0 +1,37 @@
+# Models - too big (9-20GB each)
+ollama_data/
+webui_data/
+chroma_data/
+workspace/chroma/
+*.bin
+*.gguf
+
+# Secrets - never push
+.env
+.env.local
+kaggle.json
+*.key
+*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Logs
+*.log
+outputs/
+submission.csv
+submission.tmp.csv
+
+# MacBook
+.AppleDouble
+.LSOverride
+
+# Windows
+Desktop.ini
